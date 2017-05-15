@@ -54,7 +54,7 @@ window.addEventListener("load", function(evt) {
     context = canvas.getContext('2d');
     context.drawImage(video, 0, 0, width, height);
 
-    img.src = canvas.toDataURL('image/png');
+    img.src = canvas.toDataURL('image/jpeg');
     //ws.send(canvas.toDataURL('image/png'));
     ws.send(img.src);
 

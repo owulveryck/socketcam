@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/phyber/negroni-gzip/gzip"
+	tf "github.com/tensorflow/tensorflow/tensorflow/go"
 	"github.com/urfave/negroni"
 	"github.com/vincent-petithory/dataurl"
 	"io"
@@ -20,9 +21,12 @@ import (
 )
 
 var (
-	config   configuration
-	upgrader = websocket.Upgrader{} // use default options
-	client   *vision.Client
+	config                configuration
+	upgrader              = websocket.Upgrader{} // use default options
+	client                *vision.Client
+	modelfile, labelsfile string
+	session               *tf.Session
+	graph                 *tf.Graph
 )
 
 const (
@@ -37,6 +41,7 @@ type configuration struct {
 	ListenAddress string `default:":8080"`
 	PrivateKey    string `default:"ssl/server.key"`
 	Certificate   string `default:"ssl/server.pem"`
+	TFModelDir    string `default:"/tmp/modeldir"`
 }
 
 type httpErr struct {
@@ -109,60 +114,88 @@ func process(r io.Reader) (io.Reader, error) {
 	if err != nil {
 		return r, err
 	}
-	if dataURL.ContentType() == "image/png" {
+	if dataURL.ContentType() == "image/jpeg" {
 
-		log.Println("Querying the vision API")
-		img, err := vision.NewImageFromReader(ioutil.NopCloser(bytes.NewReader(dataURL.Data)))
+		// Run inference on *imageFile.
+		// For multiple images, session.Run() can be called in a loop (and
+		// concurrently). Alternatively, images can be batched since the model
+		// accepts batches of image data as input.
+		tensor, err := makeTensorFromImage(dataURL.Data)
 		if err != nil {
-			log.Println(err)
-			return r, err
+			log.Fatal(err)
 		}
-		ctx := context.Background()
-		client, err := vision.NewClient(ctx)
+		output, err := session.Run(
+			map[tf.Output]*tf.Tensor{
+				graph.Operation("input").Output(0): tensor,
+			},
+			[]tf.Output{
+				graph.Operation("output").Output(0),
+			},
+			nil)
 		if err != nil {
-			log.Println(err)
-			return r, err
+			log.Fatal(err)
 		}
-		defer client.Close()
+		// output[0].Value() is a vector containing probabilities of
+		// labels for each image in the "batch". The batch size was 1.
+		// Find the most probably label index.
+		probabilities := output[0].Value().([][]float32)[0]
+		return bytes.NewReader([]byte(printBestLabel(probabilities, labelsfile))), nil
 
-		annsSlice, err := client.Annotate(ctx, &vision.AnnotateRequest{
-			Image:      img,
-			MaxLogos:   100,
-			MaxTexts:   100,
-			Web:        true,
-			SafeSearch: true,
-		})
-		if err != nil {
-			log.Println(err)
-			return r, err
-		}
-		for _, anns := range annsSlice {
-			if anns.Web != nil {
-				for _, i := range anns.Web.FullMatchingImages {
-					log.Println(i.URL)
-				}
-				for _, i := range anns.Web.PartialMatchingImages {
-					log.Println(i.URL)
-				}
-				for _, i := range anns.Web.PagesWithMatchingImages {
-					log.Println(i.URL)
-				}
+		// For now, only use tensorflow
+		if false {
+			log.Println("Querying the vision API")
+			img, err := vision.NewImageFromReader(ioutil.NopCloser(bytes.NewReader(dataURL.Data)))
+			if err != nil {
+				log.Println(err)
+				return r, err
 			}
-			if anns.Logos != nil {
-				fmt.Println("Logos", anns.Logos)
-				for _, logo := range anns.Logos {
-					log.Println(logo)
+			ctx := context.Background()
+			client, err := vision.NewClient(ctx)
+			if err != nil {
+				log.Println(err)
+				return r, err
+			}
+			defer client.Close()
+
+			annsSlice, err := client.Annotate(ctx, &vision.AnnotateRequest{
+				Image:      img,
+				MaxLogos:   100,
+				MaxTexts:   100,
+				Web:        true,
+				SafeSearch: true,
+			})
+			if err != nil {
+				log.Println(err)
+				return r, err
+			}
+			for _, anns := range annsSlice {
+				if anns.Web != nil {
+					for _, i := range anns.Web.FullMatchingImages {
+						log.Println(i.URL)
+					}
+					for _, i := range anns.Web.PartialMatchingImages {
+						log.Println(i.URL)
+					}
+					for _, i := range anns.Web.PagesWithMatchingImages {
+						log.Println(i.URL)
+					}
 				}
-			}
-			if anns.Texts != nil {
-				fmt.Println("Texts", anns.Texts)
-			}
-			if anns.FullText != nil {
-				fmt.Println(anns.FullText.Text)
-				return bytes.NewReader([]byte(anns.FullText.Text)), nil
-			}
-			if anns.Error != nil {
-				fmt.Printf("at least one of the features failed: %v", anns.Error)
+				if anns.Logos != nil {
+					fmt.Println("Logos", anns.Logos)
+					for _, logo := range anns.Logos {
+						log.Println(logo)
+					}
+				}
+				if anns.Texts != nil {
+					fmt.Println("Texts", anns.Texts)
+				}
+				if anns.FullText != nil {
+					fmt.Println(anns.FullText.Text)
+					return bytes.NewReader([]byte(anns.FullText.Text)), nil
+				}
+				if anns.Error != nil {
+					fmt.Printf("at least one of the features failed: %v", anns.Error)
+				}
 			}
 		}
 	}
@@ -182,6 +215,30 @@ func main() {
 		log.Printf("==> PRIVATEKEY: %v", config.PrivateKey)
 		log.Printf("==> CERTIFICATE: %v", config.Certificate)
 	}
+
+	// Initializing tensorflow
+	// Load the serialized GraphDef from a file.
+	modelfile, labelsfile, err = modelFiles(config.TFModelDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	model, err := ioutil.ReadFile(modelfile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Construct an in-memory graph from the serialized form.
+	graph = tf.NewGraph()
+	if err := graph.Import(model, ""); err != nil {
+		log.Fatal(err)
+	}
+
+	// Create a session for inference over graph.
+	session, err = tf.NewSession(graph, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer session.Close()
 
 	router := newRouter()
 	n := negroni.Classic()
