@@ -129,6 +129,7 @@ func process(r io.Reader) (io.Reader, error) {
 			Image:      img,
 			MaxLogos:   100,
 			MaxTexts:   100,
+			Web:        true,
 			SafeSearch: true,
 		})
 		if err != nil {
@@ -136,7 +137,17 @@ func process(r io.Reader) (io.Reader, error) {
 			return r, err
 		}
 		for _, anns := range annsSlice {
-			log.Println(anns)
+			if anns.Web != nil {
+				for _, i := range anns.Web.FullMatchingImages {
+					log.Println(i.URL)
+				}
+				for _, i := range anns.Web.PartialMatchingImages {
+					log.Println(i.URL)
+				}
+				for _, i := range anns.Web.PagesWithMatchingImages {
+					log.Println(i.URL)
+				}
+			}
 			if anns.Logos != nil {
 				fmt.Println("Logos", anns.Logos)
 				for _, logo := range anns.Logos {
