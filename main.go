@@ -107,11 +107,9 @@ func process(r io.Reader) (io.Reader, error) {
 	var err error
 	dataURL, err := dataurl.Decode(r)
 	if err != nil {
-		log.Println("Cannot decode", err)
 		return r, err
 	}
 	if dataURL.ContentType() == "image/png" {
-		ioutil.WriteFile("/home/olivier/Downloads/image.png", dataURL.Data, 0644)
 
 		log.Println("Querying the vision API")
 		img, err := vision.NewImageFromReader(ioutil.NopCloser(bytes.NewReader(dataURL.Data)))
@@ -147,6 +145,10 @@ func process(r io.Reader) (io.Reader, error) {
 			}
 			if anns.Texts != nil {
 				fmt.Println("Texts", anns.Texts)
+			}
+			if anns.FullText != nil {
+				fmt.Println(anns.FullText.Text)
+				return bytes.NewReader([]byte(anns.FullText.Text)), nil
 			}
 			if anns.Error != nil {
 				fmt.Printf("at least one of the features failed: %v", anns.Error)
