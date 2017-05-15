@@ -8,9 +8,11 @@ window.addEventListener("load", function(evt) {
   var canvas;
 
   var print = function(message) {
-    var d = document.createElement("div");
-    d.innerHTML = message;
-    output.appendChild(d);
+
+    //var d = document.createElement("div");
+    //d.innerHTML = message;
+    document.getElementById("output").innerHTML= message;
+    //output.appendChild(d);
   };
 
   var loc = window.location, new_uri;
@@ -23,8 +25,8 @@ window.addEventListener("load", function(evt) {
   new_uri += loc.pathname + "ws";
   ws = new WebSocket(new_uri);
   ws.onopen = function(evt) {
-    print("OPEN");
-    takeSnapshot();
+    print("Websocket connected");
+    //takeSnapshot();
   }
   ws.onclose = function(evt) {
     print("CLOSE");
@@ -42,7 +44,7 @@ window.addEventListener("load", function(evt) {
    *  appends the image to the <body>
    */
   function takeSnapshot() {
-    var img = document.querySelector('img') || document.createElement('img');
+    //var img = document.querySelector('img') || document.createElement('img');
     var context;
     var width = video.offsetWidth
       , height = video.offsetHeight;
@@ -54,11 +56,11 @@ window.addEventListener("load", function(evt) {
     context = canvas.getContext('2d');
     context.drawImage(video, 0, 0, width, height);
 
-    img.src = canvas.toDataURL('image/jpeg');
-    //ws.send(canvas.toDataURL('image/png'));
-    ws.send(img.src);
+    //img.src = canvas.toDataURL('image/jpeg');
+    ws.send(canvas.toDataURL('image/jpeg'));
+    //ws.send(img.src);
 
-    document.body.appendChild(img);
+    //document.body.appendChild(img);
   }
 
   // use MediaDevices API
@@ -70,6 +72,7 @@ window.addEventListener("load", function(evt) {
       .then(function(stream) {
         video.src = window.URL.createObjectURL(stream);
         video.addEventListener('click', takeSnapshot);
+        setInterval(takeSnapshot,500);
       })
     // permission denied:
       .catch(function(error) {
