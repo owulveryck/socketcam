@@ -1,12 +1,20 @@
 package main
 
 import (
+	"bytes"
+	"cloud.google.com/go/vision"
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/phyber/negroni-gzip/gzip"
 	"github.com/urfave/negroni"
+	"github.com/vincent-petithory/dataurl"
+	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 )
@@ -14,6 +22,7 @@ import (
 var (
 	config   configuration
 	upgrader = websocket.Upgrader{} // use default options
+	client   *vision.Client
 )
 
 const (
@@ -36,9 +45,9 @@ type httpErr struct {
 }
 
 type message struct {
-	Sense  string `json:"sense"`
-	Action string `json:"action"`
-	Data   []byte `json:"data"`
+	Action  string      `json:"action"`
+	Message interface{} `json:"message"`
+	DataURI []byte      `json:"data_uri"`
 }
 
 func handleErr(w http.ResponseWriter, err error, status int) {
@@ -60,23 +69,91 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close()
 	for {
-		mt, msg, err := c.ReadMessage()
+		mt, r, err := c.NextReader()
 		if err != nil {
 			handleErr(w, err, http.StatusInternalServerError)
-			break
+			continue
 		}
 		if mt != websocket.TextMessage {
 			handleErr(w, errors.New("Only text message are supported"), http.StatusNotImplemented)
-			break
+			continue
 		}
-		var v message
-		json.Unmarshal(msg, &v)
-		err = c.WriteMessage(mt, []byte(msg))
+		rd, err := process(r)
+		if err != nil {
+			msg, _ := json.Marshal(&httpErr{
+				Msg:  err.Error(),
+				Code: http.StatusInternalServerError,
+			})
+			c.WriteMessage(websocket.TextMessage, msg)
+			continue
+		}
+		cw, err := c.NextWriter(mt)
 		if err != nil {
 			handleErr(w, err, http.StatusInternalServerError)
-			break
+			return
+		}
+		if _, err := io.Copy(cw, rd); err != nil {
+			handleErr(w, err, http.StatusInternalServerError)
+			return
+		}
+		if err := cw.Close(); err != nil {
+			handleErr(w, err, http.StatusInternalServerError)
+			return
 		}
 	}
+}
+
+func process(r io.Reader) (io.Reader, error) {
+	var err error
+	dataURL, err := dataurl.Decode(r)
+	if err != nil {
+		log.Println("Cannot decode", err)
+		return r, err
+	}
+	if dataURL.ContentType() == "image/png" {
+		ioutil.WriteFile("/home/olivier/Downloads/image.png", dataURL.Data, 0644)
+
+		log.Println("Querying the vision API")
+		img, err := vision.NewImageFromReader(ioutil.NopCloser(bytes.NewReader(dataURL.Data)))
+		if err != nil {
+			log.Println(err)
+			return r, err
+		}
+		ctx := context.Background()
+		client, err := vision.NewClient(ctx)
+		if err != nil {
+			log.Println(err)
+			return r, err
+		}
+		defer client.Close()
+
+		annsSlice, err := client.Annotate(ctx, &vision.AnnotateRequest{
+			Image:      img,
+			MaxLogos:   100,
+			MaxTexts:   100,
+			SafeSearch: true,
+		})
+		if err != nil {
+			log.Println(err)
+			return r, err
+		}
+		for _, anns := range annsSlice {
+			log.Println(anns)
+			if anns.Logos != nil {
+				fmt.Println("Logos", anns.Logos)
+				for _, logo := range anns.Logos {
+					log.Println(logo)
+				}
+			}
+			if anns.Texts != nil {
+				fmt.Println("Texts", anns.Texts)
+			}
+			if anns.Error != nil {
+				fmt.Printf("at least one of the features failed: %v", anns.Error)
+			}
+		}
+	}
+	return r, nil
 }
 
 func main() {
@@ -95,6 +172,7 @@ func main() {
 
 	router := newRouter()
 	n := negroni.Classic()
+	n.Use(gzip.Gzip(gzip.DefaultCompression))
 
 	n.UseHandler(router)
 	if config.Scheme == "https" {

@@ -1,28 +1,20 @@
 <!DOCTYPE html>
 <head>
-<meta charset="utf-8">
-<script type="text/javascript" src="app.js"></script>
-
+  <meta charset="utf-8">
+  <title>WebCam</title>
+  <script type="text/javascript" src="app.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://code.jquery.com/jquery-3.2.1.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/js/bootstrap.min.js" integrity="sha384-vBWWzlZJ8ea9aCX4pEW3rVHjgjt7zpkNpZk+02D9phzyeVkE+jo0ieGizqPLForn" crossorigin="anonymous"></script>
+  <style>
+    video, img {
+      max-width:100%;
+    }
+  </style>
 </head>
 <body>
-<table>
-  <tr>
-    <td valign="top" width="50%">
-      <p>Click "Open" to create a connection to the server, 
-      "Send" to send a message to the server and "Close" to close the connection. 
-      You can change the message and send multiple times.
-      </p>
-      <form>
-        <button id="open">Open</button>
-        <button id="close">Close</button>
-        <p><input id="input" type="text" value="Hello world!">
-        <button id="send">Send</button>
-      </form>
-    </td>
-    <td valign="top" width="50%">
-      <div id="output"></div>
-    </td>
-  </tr>
-</table>
+<div id="output"></div>
+<video autoplay></video>
 </body>
 </html>
