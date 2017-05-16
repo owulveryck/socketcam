@@ -57,7 +57,19 @@ window.addEventListener("load", function(evt) {
     context.drawImage(video, 0, 0, width, height);
 
     //img.src = canvas.toDataURL('image/jpeg');
-    ws.send(canvas.toDataURL('image/jpeg'));
+    var dataURI = canvas.toDataURL('image/jpeg')
+    var byteString = dataURI.split(',')[1];
+
+    // separate out the mime component
+    var mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0]
+    //
+    var message = {"dataURI":{}};
+    message.dataURI.contentType = mimeString;
+    message.dataURI.content = byteString;
+    var json = JSON.stringify(message);
+    ws.send(json);
+    console.log(json);
+    //ws.send(canvas.toDataURL('image/jpeg'));
     //ws.send(img.src);
 
     //document.body.appendChild(img);
@@ -72,7 +84,7 @@ window.addEventListener("load", function(evt) {
       .then(function(stream) {
         video.src = window.URL.createObjectURL(stream);
         video.addEventListener('click', takeSnapshot);
-        setInterval(takeSnapshot,500);
+        setInterval(takeSnapshot,5000);
       })
     // permission denied:
       .catch(function(error) {

@@ -1,0 +1,2 @@
+export SOCKETCAM_TFMODELDIR=models
+export SOCKETCAM_SCHEME=https

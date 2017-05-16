@@ -22,3 +22,6 @@
 # Ignoring binaries
 socketcam
 main
+models
+ssl/*pem
+ssl/*key

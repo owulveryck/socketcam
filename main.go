@@ -13,7 +13,6 @@ import (
 	"github.com/phyber/negroni-gzip/gzip"
 	tf "github.com/tensorflow/tensorflow/tensorflow/go"
 	"github.com/urfave/negroni"
-	"github.com/vincent-petithory/dataurl"
 	"io"
 	"io/ioutil"
 	"log"
@@ -52,7 +51,10 @@ type httpErr struct {
 type message struct {
 	Action  string      `json:"action"`
 	Message interface{} `json:"message"`
-	DataURI []byte      `json:"data_uri"`
+	DataURI struct {
+		ContentType string `json:"contentType"`
+		Content     []byte `json:"content"`
+	} `json:"dataURI"`
 }
 
 func handleErr(w http.ResponseWriter, err error, status int) {
@@ -109,18 +111,20 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 }
 
 func process(r io.Reader) (io.Reader, error) {
-	var err error
-	dataURL, err := dataurl.Decode(r)
+	var m message
+	dec := json.NewDecoder(r)
+	err := dec.Decode(&m)
 	if err != nil {
 		return r, err
 	}
-	if dataURL.ContentType() == "image/jpeg" {
+	if m.DataURI.ContentType == "image/jpeg" {
 
+		data := m.DataURI.Content
 		// Run inference on *imageFile.
 		// For multiple images, session.Run() can be called in a loop (and
 		// concurrently). Alternatively, images can be batched since the model
 		// accepts batches of image data as input.
-		tensor, err := makeTensorFromImage(dataURL.Data)
+		tensor, err := makeTensorFromImage(data)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -144,7 +148,7 @@ func process(r io.Reader) (io.Reader, error) {
 		// For now, only use tensorflow
 		if false {
 			log.Println("Querying the vision API")
-			img, err := vision.NewImageFromReader(ioutil.NopCloser(bytes.NewReader(dataURL.Data)))
+			img, err := vision.NewImageFromReader(ioutil.NopCloser(bytes.NewReader(data)))
 			if err != nil {
 				log.Println(err)
 				return r, err
