@@ -14,7 +14,7 @@ import (
 	"github.com/tensorflow/tensorflow/tensorflow/go/op"
 )
 
-func printBestLabel(probabilities []float32, labelsFile string) string {
+func printBestLabel(probabilities []float32, labelsFile string) *tfLabel {
 	bestIdx := 0
 	for i, p := range probabilities {
 		if p > probabilities[bestIdx] {
@@ -36,7 +36,10 @@ func printBestLabel(probabilities []float32, labelsFile string) string {
 	if err := scanner.Err(); err != nil {
 		log.Printf("ERROR: failed to read %s: %v", labelsFile, err)
 	}
-	return fmt.Sprintf("BEST MATCH: (%2.0f%% likely) %s\n", probabilities[bestIdx]*100.0, labels[bestIdx])
+	return &tfLabel{
+		Label:       labels[bestIdx],
+		Probability: probabilities[bestIdx],
+	}
 }
 
 // Convert the image in filename to a Tensor suitable as input to the Inception model.

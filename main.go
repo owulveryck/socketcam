@@ -36,11 +36,17 @@ const (
 
 type configuration struct {
 	Debug         bool   `default:"true"`
+	GVision       bool   `default:"false"`
+	TFVision      bool   `default:"true"`
 	Scheme        string `default:"http"`
 	ListenAddress string `default:":8080"`
 	PrivateKey    string `default:"ssl/server.key"`
 	Certificate   string `default:"ssl/server.pem"`
 	TFModelDir    string `default:"/tmp/modeldir"`
+}
+type tfLabel struct {
+	Label       string
+	Probability float32
 }
 
 type httpErr struct {
@@ -112,6 +118,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 
 func process(r io.Reader) (io.Reader, error) {
 	var m message
+	var buff bytes.Buffer
 	dec := json.NewDecoder(r)
 	err := dec.Decode(&m)
 	if err != nil {
@@ -120,33 +127,36 @@ func process(r io.Reader) (io.Reader, error) {
 	if m.DataURI.ContentType == "image/jpeg" {
 
 		data := m.DataURI.Content
-		// Run inference on *imageFile.
-		// For multiple images, session.Run() can be called in a loop (and
-		// concurrently). Alternatively, images can be batched since the model
-		// accepts batches of image data as input.
-		tensor, err := makeTensorFromImage(data)
-		if err != nil {
-			log.Fatal(err)
+		if config.TFVision {
+			// Run inference on *imageFile.
+			// For multiple images, session.Run() can be called in a loop (and
+			// concurrently). Alternatively, images can be batched since the model
+			// accepts batches of image data as input.
+			tensor, err := makeTensorFromImage(data)
+			if err != nil {
+				log.Fatal(err)
+			}
+			output, err := session.Run(
+				map[tf.Output]*tf.Tensor{
+					graph.Operation("input").Output(0): tensor,
+				},
+				[]tf.Output{
+					graph.Operation("output").Output(0),
+				},
+				nil)
+			if err != nil {
+				log.Fatal(err)
+			}
+			// output[0].Value() is a vector containing probabilities of
+			// labels for each image in the "batch". The batch size was 1.
+			// Find the most probably label index.
+			probabilities := output[0].Value().([][]float32)[0]
+			label := printBestLabel(probabilities, labelsfile)
+			buff.Write([]byte(fmt.Sprintf("%v (%2.0f%%)", label.Label, label.Probability*100.0)))
 		}
-		output, err := session.Run(
-			map[tf.Output]*tf.Tensor{
-				graph.Operation("input").Output(0): tensor,
-			},
-			[]tf.Output{
-				graph.Operation("output").Output(0),
-			},
-			nil)
-		if err != nil {
-			log.Fatal(err)
-		}
-		// output[0].Value() is a vector containing probabilities of
-		// labels for each image in the "batch". The batch size was 1.
-		// Find the most probably label index.
-		probabilities := output[0].Value().([][]float32)[0]
-		return bytes.NewReader([]byte(printBestLabel(probabilities, labelsfile))), nil
 
 		// For now, only use tensorflow
-		if false {
+		if config.GVision {
 			log.Println("Querying the vision API")
 			img, err := vision.NewImageFromReader(ioutil.NopCloser(bytes.NewReader(data)))
 			if err != nil {
@@ -162,11 +172,11 @@ func process(r io.Reader) (io.Reader, error) {
 			defer client.Close()
 
 			annsSlice, err := client.Annotate(ctx, &vision.AnnotateRequest{
-				Image:      img,
-				MaxLogos:   100,
-				MaxTexts:   100,
-				Web:        true,
-				SafeSearch: true,
+				Image:     img,
+				Web:       true,
+				MaxLabels: 5,
+				MaxLogos:  5,
+				MaxTexts:  30,
 			})
 			if err != nil {
 				log.Println(err)
@@ -174,28 +184,36 @@ func process(r io.Reader) (io.Reader, error) {
 			}
 			for _, anns := range annsSlice {
 				if anns.Web != nil {
-					for _, i := range anns.Web.FullMatchingImages {
-						log.Println(i.URL)
+					for _, desc := range anns.Web.FullMatchingImages {
+						log.Println(desc.URL)
+						buff.Write([]byte(desc.URL + "<br>"))
 					}
-					for _, i := range anns.Web.PartialMatchingImages {
-						log.Println(i.URL)
+					for _, desc := range anns.Web.PartialMatchingImages {
+						log.Println(desc.URL)
+						buff.Write([]byte(desc.URL + "<br>"))
 					}
-					for _, i := range anns.Web.PagesWithMatchingImages {
-						log.Println(i.URL)
+					for _, desc := range anns.Web.PagesWithMatchingImages {
+						log.Println(desc.URL)
+						buff.Write([]byte(desc.URL + "<br>"))
+					}
+				}
+				if anns.Labels != nil {
+					for _, desc := range anns.Labels {
+						log.Println(desc.Description)
+						buff.Write([]byte(desc.Description + "<br>"))
 					}
 				}
 				if anns.Logos != nil {
-					fmt.Println("Logos", anns.Logos)
-					for _, logo := range anns.Logos {
-						log.Println(logo)
+					for _, desc := range anns.Logos {
+						log.Println(desc.Description)
+						buff.Write([]byte(desc.Description + "<br>"))
 					}
 				}
 				if anns.Texts != nil {
-					fmt.Println("Texts", anns.Texts)
-				}
-				if anns.FullText != nil {
-					fmt.Println(anns.FullText.Text)
-					return bytes.NewReader([]byte(anns.FullText.Text)), nil
+					for _, desc := range anns.Texts {
+						log.Println(desc.Description)
+						buff.Write([]byte(desc.Description + "<br>"))
+					}
 				}
 				if anns.Error != nil {
 					fmt.Printf("at least one of the features failed: %v", anns.Error)
@@ -203,13 +221,13 @@ func process(r io.Reader) (io.Reader, error) {
 			}
 		}
 	}
-	return r, nil
+	return &buff, nil
 }
 
 func main() {
 
 	// Default values
-	err := envconfig.Process("SOCKETCAM", &config)
+	err := envconfig.Process("DEMO", &config)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
