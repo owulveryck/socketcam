@@ -227,7 +227,7 @@ func process(r io.Reader) (io.Reader, error) {
 func main() {
 
 	// Default values
-	err := envconfig.Process("DEMO", &config)
+	err := envconfig.Process("SOCKETCAM", &config)
 	if err != nil {
 		log.Fatal(err.Error())
 	}

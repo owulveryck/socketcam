@@ -68,7 +68,6 @@ window.addEventListener("load", function(evt) {
     message.dataURI.content = byteString;
     var json = JSON.stringify(message);
     ws.send(json);
-    console.log(json);
     //ws.send(canvas.toDataURL('image/jpeg'));
     //ws.send(img.src);
 

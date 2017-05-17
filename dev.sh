@@ -1,1 +1,2 @@
-export DEMO_SCHEME=https
+export SOCKETCAM_SCHEME=https
+export SOCKETCAM_TFMODELDIR=models

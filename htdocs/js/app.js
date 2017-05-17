@@ -34,6 +34,9 @@ window.addEventListener("load", function(evt) {
   }
   ws.onmessage = function(evt) {
     print(evt.data);
+     var msg = new SpeechSynthesisUtterance(evt.data);
+     msg.lang = 'en-US';
+     window.speechSynthesis.speak(msg);        
   }
   ws.onerror = function(evt) {
     print("ERROR: " + evt.data);
@@ -79,7 +82,11 @@ window.addEventListener("load", function(evt) {
   // docs: https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
   if (navigator.mediaDevices) {
     // access the web cam
-    navigator.mediaDevices.getUserMedia({video: true})
+    var front = false;
+    document.getElementById('flip-button').onclick = function() { front = !front; };
+
+    var constraints = { video: { facingMode: (front? "user" : "environment") } };
+    navigator.mediaDevices.getUserMedia(constraints)
     // permission granted:
       .then(function(stream) {
         video.src = window.URL.createObjectURL(stream);
