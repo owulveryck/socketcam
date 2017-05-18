@@ -4,6 +4,7 @@
 package wsdispatcher
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/websocket"
@@ -15,8 +16,8 @@ import (
 // as well as the action to be performed on receive a []byte
 type WSDispatch struct {
 	Upgrader  websocket.Upgrader
-	Senders   []func() []byte
-	Receivers []func(*[]byte)
+	Senders   []func(ctx context.Context) []byte
+	Receivers []func(context.Context, *[]byte)
 }
 
 type httpErr struct {
@@ -64,10 +65,10 @@ func (wsd *WSDispatch) ServeWS(w http.ResponseWriter, r *http.Request) {
 	senders := make([]<-chan []byte, sndrsNum)
 	chans := fanOut(rcv, rcvsNum, 1)
 	for i := 0; i < sndrsNum; i++ {
-		senders[i] = send(stop[i], wsd.Senders[i])
+		senders[i] = send(r.Context(), stop[i], wsd.Senders[i])
 	}
 	for i := range chans {
-		receive(chans[i], stop[i+sndrsNum], wsd.Receivers[i])
+		receive(r.Context(), chans[i], stop[i+sndrsNum], wsd.Receivers[i])
 	}
 	done := make(chan struct{}, 1)
 	send := merge(done, senders...)
@@ -171,7 +172,7 @@ func merge(done <-chan struct{}, cs ...<-chan []byte) <-chan []byte {
 	return out
 }
 
-func send(stop chan struct{}, f func() []byte) chan []byte {
+func send(ctx context.Context, stop chan struct{}, f func(context.Context) []byte) chan []byte {
 	c := make(chan []byte)
 	go func() {
 		for {
@@ -179,19 +180,19 @@ func send(stop chan struct{}, f func() []byte) chan []byte {
 			case <-stop:
 				close(c)
 				return
-			case c <- f():
+			case c <- f(ctx):
 			}
 		}
 	}()
 	return c
 }
 
-func receive(msg <-chan []byte, stop chan struct{}, f func(*[]byte)) {
+func receive(ctx context.Context, msg <-chan []byte, stop chan struct{}, f func(context.Context, *[]byte)) {
 	go func() {
 		for {
 			select {
 			case b := <-msg:
-				f(&b)
+				f(ctx, &b)
 			case <-stop:
 				return
 			}
