@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"net/http"
 	"sync"
@@ -46,8 +47,15 @@ func handleErr(w http.ResponseWriter, err error, status int) {
 	http.Error(w, string(msg), status)
 }
 
+// ContextKeyType is the type of the key of the context
+type ContextKeyType string
+
+// ContextKey is the key name where the session is stored
+const ContextKey = "uuid"
+
 // ServeWS is the dispacher function
 func (wsd *WSDispatch) ServeWS(w http.ResponseWriter, r *http.Request) {
+	ctx := context.WithValue(r.Context(), ContextKeyType(ContextKey), uuid.New().String())
 	conn, err := wsd.Upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		handleErr(w, err, http.StatusInternalServerError)
@@ -65,10 +73,10 @@ func (wsd *WSDispatch) ServeWS(w http.ResponseWriter, r *http.Request) {
 	senders := make([]<-chan []byte, sndrsNum)
 	chans := fanOut(rcv, rcvsNum, 1)
 	for i := 0; i < sndrsNum; i++ {
-		senders[i] = send(r.Context(), stop[i], wsd.Senders[i])
+		senders[i] = send(ctx, stop[i], wsd.Senders[i])
 	}
 	for i := range chans {
-		receive(r.Context(), chans[i], stop[i+sndrsNum], wsd.Receivers[i])
+		receive(ctx, chans[i], stop[i+sndrsNum], wsd.Receivers[i])
 	}
 	done := make(chan struct{}, 1)
 	send := merge(done, senders...)

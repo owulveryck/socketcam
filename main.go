@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/kelseyhightower/envconfig"
@@ -49,8 +50,8 @@ func main() {
 	d4 := dummy.New()
 	wsDsptch := &wsdispatcher.WSDispatch{
 		Upgrader:  websocket.Upgrader{},
-		Senders:   []func() []byte{d1.Send, d2.Send, d3.Send},
-		Receivers: []func(*[]byte){d1.Receive, d4.Receive},
+		Senders:   []func(context.Context) []byte{d1.Send, d2.Send, d3.Send},
+		Receivers: []func(context.Context, *[]byte){d1.Receive, d4.Receive},
 	}
 
 	router := mux.NewRouter().StrictSlash(true)

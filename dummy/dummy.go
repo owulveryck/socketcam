@@ -1,6 +1,7 @@
 package dummy
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -25,13 +26,13 @@ func New() *ReceiverSender {
 }
 
 // Send ...
-func (r *ReceiverSender) Send() []byte {
-	log.Printf("[%v] Sleeping...", r.Ret)
+func (r *ReceiverSender) Send(ctx context.Context) []byte {
+	log.Printf("[%v] Sleeping... (%v)", r.Ret, ctx)
 	time.Sleep(time.Duration(r.Ret) * time.Millisecond)
 	return []byte(fmt.Sprintf("%v", r.Ret))
 }
 
 // Receive ...
-func (r *ReceiverSender) Receive(b *[]byte) {
-	log.Printf("[%v] received %v", r.Ret, *b)
+func (r *ReceiverSender) Receive(ctx context.Context, b *[]byte) {
+	log.Printf("[%v] received (%v)", r.Ret, ctx)
 }
