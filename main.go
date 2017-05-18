@@ -76,6 +76,19 @@ func main() {
 				// Write a ping to the websocket every second
 				go func() {
 					for {
+						<-msg
+						log.Println("Also Received the message")
+						c <- []byte("message processed too")
+
+					}
+				}()
+				return c
+			},
+			func(msg <-chan wsdispatcher.Message) chan wsdispatcher.Message {
+				c := make(chan wsdispatcher.Message)
+				// Write a ping to the websocket every second
+				go func() {
+					for {
 						log.Println("ping")
 						time.Sleep(1 * time.Second)
 						c <- []byte("ping 1s")

@@ -65,7 +65,7 @@ func (wsd *WSDispatch) ServeWS(w http.ResponseWriter, r *http.Request) {
 	for i := range chans {
 		senders[i] = wsd.Processors[i](chans[i])
 	}
-	done := make(chan struct{}, l)
+	done := make(chan struct{}, 1)
 	send := merge(done, senders...)
 	closed := make(chan struct{}, 2)
 	go func() {
@@ -111,9 +111,7 @@ func (wsd *WSDispatch) ServeWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	<-closed
-	for i := 0; i < l; i++ {
-		done <- struct{}{}
-	}
+	done <- struct{}{}
 
 }
 
