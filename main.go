@@ -4,12 +4,12 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/owulveryck/socketcam/dummy"
 	"github.com/owulveryck/socketcam/wsdispatcher"
 	"github.com/phyber/negroni-gzip/gzip"
 	"github.com/urfave/negroni"
 	"log"
 	"net/http"
-	"time"
 )
 
 var (
@@ -43,59 +43,14 @@ func main() {
 		log.Printf("==> PRIVATEKEY: %v", config.PrivateKey)
 		log.Printf("==> CERTIFICATE: %v", config.Certificate)
 	}
+	d1 := dummy.New()
+	d2 := dummy.New()
+	d3 := dummy.New()
+	d4 := dummy.New()
 	wsDsptch := &wsdispatcher.WSDispatch{
-		Upgrader: websocket.Upgrader{},
-		Processors: []func(<-chan wsdispatcher.Message) chan wsdispatcher.Message{
-			func(msg <-chan wsdispatcher.Message) chan wsdispatcher.Message {
-				c := make(chan wsdispatcher.Message)
-				// Write a ping to the websocket every second
-				go func() {
-					for {
-						log.Println("ping 1.5")
-						time.Sleep(1500 * time.Millisecond)
-						c <- []byte("ping 1.5s")
-					}
-				}()
-				return c
-			},
-			func(msg <-chan wsdispatcher.Message) chan wsdispatcher.Message {
-				c := make(chan wsdispatcher.Message)
-				// Write a ping to the websocket every second
-				go func() {
-					for {
-						<-msg
-						log.Println("Received a message")
-						c <- []byte("message processed")
-
-					}
-				}()
-				return c
-			},
-			func(msg <-chan wsdispatcher.Message) chan wsdispatcher.Message {
-				c := make(chan wsdispatcher.Message)
-				// Write a ping to the websocket every second
-				go func() {
-					for {
-						<-msg
-						log.Println("Also Received the message")
-						c <- []byte("message processed too")
-					}
-				}()
-				return c
-			},
-			func(msg <-chan wsdispatcher.Message) chan wsdispatcher.Message {
-				c := make(chan wsdispatcher.Message)
-				// Write a ping to the websocket every second
-				go func() {
-					for {
-						log.Println("ping")
-						time.Sleep(1 * time.Second)
-						c <- []byte("ping 1s")
-					}
-				}()
-				return c
-			},
-		},
+		Upgrader:  websocket.Upgrader{},
+		Senders:   []wsdispatcher.Sender{d1, d2, d3},
+		Receivers: []wsdispatcher.Receiver{d1, d4},
 	}
 
 	router := mux.NewRouter().StrictSlash(true)

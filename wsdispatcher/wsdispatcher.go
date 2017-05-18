@@ -15,12 +15,9 @@ import (
 // WSDispatch specifies how to upgrade an HTTP connection to a Websocket connection
 // as well as the action to be performed on receive a Message
 type WSDispatch struct {
-	Upgrader websocket.Upgrader
-	//receiver   []<-chan Message
-	//sender     chan<- Message
-	Processors []func(Message <-chan Message) chan Message
-	Sender     []Sender
-	Receiver   []Receiver
+	Upgrader  websocket.Upgrader
+	Senders   []Sender
+	Receivers []Receiver
 }
 
 type httpErr struct {
@@ -31,25 +28,14 @@ type httpErr struct {
 // Message ...
 type Message []byte
 
-/*
-type Message struct {
-	Action  string      `json:"action"`
-	Message interface{} `json:"Message"`
-	DataURI struct {
-		ContentType string `json:"contentType"`
-		Content     []byte `json:"content"`
-	} `json:"dataURI"`
-}
-*/
-
 // Sender must implement the send method
 type Sender interface {
-	Send(stop chan<- struct{}) chan Message
+	Send(stop chan struct{}) chan Message
 }
 
-// Receiver must implement the receive method and read th
+// Receiver must implement the receive method
 type Receiver interface {
-	Receive(msg <-chan Message, stop chan<- struct{})
+	Receive(msg <-chan Message, stop chan struct{})
 }
 
 func handleErr(w http.ResponseWriter, err error, status int) {
@@ -71,12 +57,21 @@ func (wsd *WSDispatch) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
-	l := len(wsd.Processors)
+	rcvsNum := len(wsd.Receivers)
+	sndrsNum := len(wsd.Senders)
+	stop := make([]chan struct{}, sndrsNum+rcvsNum, sndrsNum+rcvsNum)
 	rcv := make(chan Message, 1)
-	senders := make([]<-chan Message, l)
-	chans := fanOut(rcv, l, 1)
+	senders := make([]<-chan Message, sndrsNum)
+	chans := fanOut(rcv, rcvsNum, 1)
+	for i := 0; i < sndrsNum; i++ {
+		//go func(i int) {
+		senders[i] = wsd.Senders[i].Send(stop[i])
+		//}(i)
+	}
 	for i := range chans {
-		senders[i] = wsd.Processors[i](chans[i])
+		//go func(i int) {
+		wsd.Receivers[i].Receive(chans[i], stop[i+sndrsNum])
+		//}(i)
 	}
 	done := make(chan struct{}, 1)
 	send := merge(done, senders...)
@@ -84,6 +79,7 @@ func (wsd *WSDispatch) ServeWS(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		for {
 			p := <-send
+			log.Println("[Dispatch] sending message %s", p)
 			err := conn.WriteMessage(websocket.TextMessage, p)
 			if ce, ok := err.(*websocket.CloseError); ok {
 				switch ce.Code {
@@ -125,6 +121,9 @@ func (wsd *WSDispatch) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}()
 	<-closed
 	done <- struct{}{}
+	for i := 0; i < sndrsNum+rcvsNum; i++ {
+		stop[i] <- struct{}{}
+	}
 
 }
 
