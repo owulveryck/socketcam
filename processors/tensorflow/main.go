@@ -1,11 +1,9 @@
 package tensorflow
 
 import (
-	"cloud.google.com/go/vision"
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"github.com/kelseyhightower/envconfig"
 	tf "github.com/tensorflow/tensorflow/tensorflow/go"
 	"io/ioutil"
@@ -14,28 +12,14 @@ import (
 
 var (
 	config                configuration
-	upgrader              = websocket.Upgrader{} // use default options
-	client                *vision.Client
 	modelfile, labelsfile string
 	session               *tf.Session
 	graph                 *tf.Graph
-)
-
-const (
-	senseVisison = "vision"
-	senseHearing = "hearing"
-	senseRading  = "reading"
+	c                     chan []byte
 )
 
 type configuration struct {
-	Debug         bool   `default:"true"`
-	GVision       bool   `default:"false"`
-	TFVision      bool   `default:"true"`
-	Scheme        string `default:"http"`
-	ListenAddress string `default:":8080"`
-	PrivateKey    string `default:"ssl/server.key"`
-	Certificate   string `default:"ssl/server.pem"`
-	TFModelDir    string `default:"/tmp/modeldir"`
+	TFModelDir string `default:"/tmp/modeldir"`
 }
 type tfLabel struct {
 	Label       string
@@ -59,7 +43,6 @@ func Receive(ctx context.Context, b *[]byte) {
 		return
 	}
 	if m.DataURI.ContentType == "image/jpeg" {
-
 		data := m.DataURI.Content
 		// Run inference on *imageFile.
 		// For multiple images, session.Run() can be called in a loop (and
@@ -85,23 +68,21 @@ func Receive(ctx context.Context, b *[]byte) {
 		// Find the most probably label index.
 		probabilities := output[0].Value().([][]float32)[0]
 		label := printBestLabel(probabilities, labelsfile)
-		buff.Write([]byte(fmt.Sprintf("%v (%2.0f%%)", label.Label, label.Probability*100.0)))
+		c <- []byte(fmt.Sprintf("%v (%2.0f%%)", label.Label, label.Probability*100.0))
 	}
-
 }
 
-func main() {
+// Send to the websocket
+func Send(ctx context.Context) []byte {
+	return <-c
+}
+
+func init() {
 
 	// Default values
 	err := envconfig.Process("SOCKETCAM", &config)
 	if err != nil {
 		log.Fatal(err.Error())
-	}
-	if config.Debug {
-		log.Printf("==> SCHEME: %v", config.Scheme)
-		log.Printf("==> ADDRESS: %v", config.ListenAddress)
-		log.Printf("==> PRIVATEKEY: %v", config.PrivateKey)
-		log.Printf("==> CERTIFICATE: %v", config.Certificate)
 	}
 
 	// Initializing tensorflow
@@ -126,6 +107,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer session.Close()
+	//defer session.Close()
+	c = make(chan []byte)
 
 }
