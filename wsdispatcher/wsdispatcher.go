@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/websocket"
+	"log"
 	"net/http"
 	"sync"
 )
@@ -18,6 +19,8 @@ type WSDispatch struct {
 	//receiver   []<-chan Message
 	//sender     chan<- Message
 	Processors []func(Message <-chan Message) chan Message
+	Sender     []Sender
+	Receiver   []Receiver
 }
 
 type httpErr struct {
@@ -38,6 +41,16 @@ type Message struct {
 	} `json:"dataURI"`
 }
 */
+
+// Sender must implement the send method
+type Sender interface {
+	Send(stop chan<- struct{}) chan Message
+}
+
+// Receiver must implement the receive method and read th
+type Receiver interface {
+	Receive(msg <-chan Message, stop chan<- struct{})
+}
 
 func handleErr(w http.ResponseWriter, err error, status int) {
 	msg, err := json.Marshal(&httpErr{
@@ -130,6 +143,7 @@ func fanOut(ch <-chan Message, size, lag int) []chan Message {
 		}
 		for _, c := range cs {
 			// close all our fanOut channels when the input channel is exhausted.
+			log.Println("[fanOut] Closing channels")
 			close(c)
 		}
 	}()

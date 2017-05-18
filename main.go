@@ -79,7 +79,6 @@ func main() {
 						<-msg
 						log.Println("Also Received the message")
 						c <- []byte("message processed too")
-
 					}
 				}()
 				return c
