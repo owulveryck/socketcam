@@ -124,7 +124,6 @@ func (wsd *WSDispatch) ServeWS(w http.ResponseWriter, r *http.Request) {
 	for i := 0; i < sndrsNum+rcvsNum; i++ {
 		stop[i] <- struct{}{}
 	}
-
 }
 
 func fanOut(ch <-chan Message, size, lag int) []chan Message {

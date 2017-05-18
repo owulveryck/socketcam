@@ -31,12 +31,16 @@ func (r *ReceiverSender) Send(stop chan struct{}) chan wsdispatcher.Message {
 	go func() {
 		for {
 			log.Printf("[%v] Sending...", r.Ret)
-			c <- []byte(fmt.Sprintf("ping %v", r.Ret))
+			select {
+			case c <- []byte(fmt.Sprintf("ping %v", r.Ret)):
+			case <-stop:
+				close(c)
+				return
+			}
 			log.Printf("[%v] Sleeping...", r.Ret)
 			time.Sleep(time.Duration(r.Ret) * time.Millisecond)
 		}
 	}()
-	log.Println("[%v] Send returns", r.Ret)
 	return c
 }
 
