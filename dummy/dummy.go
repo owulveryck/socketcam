@@ -2,7 +2,6 @@ package dummy
 
 import (
 	"fmt"
-	"github.com/owulveryck/socketcam/wsdispatcher"
 	"log"
 	"math/rand"
 	"time"
@@ -26,34 +25,13 @@ func New() *ReceiverSender {
 }
 
 // Send ...
-func (r *ReceiverSender) Send(stop chan struct{}) chan wsdispatcher.Message {
-	c := make(chan wsdispatcher.Message)
-	go func() {
-		for {
-			log.Printf("[%v] Sending...", r.Ret)
-			select {
-			case c <- []byte(fmt.Sprintf("ping %v", r.Ret)):
-			case <-stop:
-				close(c)
-				return
-			}
-			log.Printf("[%v] Sleeping...", r.Ret)
-			time.Sleep(time.Duration(r.Ret) * time.Millisecond)
-		}
-	}()
-	return c
+func (r *ReceiverSender) Send() []byte {
+	log.Printf("[%v] Sleeping...", r.Ret)
+	time.Sleep(time.Duration(r.Ret) * time.Millisecond)
+	return []byte(fmt.Sprintf("%v", r.Ret))
 }
 
 // Receive ...
-func (r *ReceiverSender) Receive(msg <-chan wsdispatcher.Message, stop chan struct{}) {
-	go func() {
-		for {
-			select {
-			case <-msg:
-				log.Printf("[%v] Received a message", r.Ret)
-			case <-stop:
-				return
-			}
-		}
-	}()
+func (r *ReceiverSender) Receive(b *[]byte) {
+	log.Printf("[%v] received %v", r.Ret, *b)
 }

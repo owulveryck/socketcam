@@ -49,8 +49,8 @@ func main() {
 	d4 := dummy.New()
 	wsDsptch := &wsdispatcher.WSDispatch{
 		Upgrader:  websocket.Upgrader{},
-		Senders:   []wsdispatcher.Sender{d1, d2, d3},
-		Receivers: []wsdispatcher.Receiver{d1, d4},
+		Senders:   []func() []byte{d1.Send, d2.Send, d3.Send},
+		Receivers: []func(*[]byte){d1.Receive, d4.Receive},
 	}
 
 	router := mux.NewRouter().StrictSlash(true)

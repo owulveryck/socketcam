@@ -1,5 +1,5 @@
 // Package wsdispatcher is a utility that handles websocket connexions and dispatch
-// all the Message received to the consumers
+// all the []byte received to the consumers
 // It also get all the informations of the producers and sends them back to the websocket
 package wsdispatcher
 
@@ -7,17 +7,16 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/websocket"
-	"log"
 	"net/http"
 	"sync"
 )
 
 // WSDispatch specifies how to upgrade an HTTP connection to a Websocket connection
-// as well as the action to be performed on receive a Message
+// as well as the action to be performed on receive a []byte
 type WSDispatch struct {
 	Upgrader  websocket.Upgrader
-	Senders   []Sender
-	Receivers []Receiver
+	Senders   []func() []byte
+	Receivers []func(*[]byte)
 }
 
 type httpErr struct {
@@ -25,17 +24,14 @@ type httpErr struct {
 	Code int    `json:"code"`
 }
 
-// Message ...
-type Message []byte
-
 // Sender must implement the send method
 type Sender interface {
-	Send(stop chan struct{}) chan Message
+	Send(stop chan struct{}) chan []byte
 }
 
 // Receiver must implement the receive method
 type Receiver interface {
-	Receive(msg <-chan Message, stop chan struct{})
+	Receive(msg <-chan []byte, stop chan struct{})
 }
 
 func handleErr(w http.ResponseWriter, err error, status int) {
@@ -59,19 +55,19 @@ func (wsd *WSDispatch) ServeWS(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 	rcvsNum := len(wsd.Receivers)
 	sndrsNum := len(wsd.Senders)
-	stop := make([]chan struct{}, sndrsNum+rcvsNum, sndrsNum+rcvsNum)
-	rcv := make(chan Message, 1)
-	senders := make([]<-chan Message, sndrsNum)
+	var stop []chan struct{}
+	for i := 0; i < sndrsNum+rcvsNum; i++ {
+		s := make(chan struct{})
+		stop = append(stop, s)
+	}
+	rcv := make(chan []byte, 1)
+	senders := make([]<-chan []byte, sndrsNum)
 	chans := fanOut(rcv, rcvsNum, 1)
 	for i := 0; i < sndrsNum; i++ {
-		//go func(i int) {
-		senders[i] = wsd.Senders[i].Send(stop[i])
-		//}(i)
+		senders[i] = send(stop[i], wsd.Senders[i])
 	}
 	for i := range chans {
-		//go func(i int) {
-		wsd.Receivers[i].Receive(chans[i], stop[i+sndrsNum])
-		//}(i)
+		receive(chans[i], stop[i+sndrsNum], wsd.Receivers[i])
 	}
 	done := make(chan struct{}, 1)
 	send := merge(done, senders...)
@@ -79,41 +75,38 @@ func (wsd *WSDispatch) ServeWS(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		for {
 			p := <-send
-			log.Println("[Dispatch] sending message %s", p)
 			err := conn.WriteMessage(websocket.TextMessage, p)
-			if ce, ok := err.(*websocket.CloseError); ok {
-				switch ce.Code {
-				case websocket.CloseNormalClosure,
-					websocket.CloseGoingAway,
-					websocket.CloseNoStatusReceived:
+			if err != nil {
+				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
 					closed <- struct{}{}
 					return
-				default:
-					handleErr(w, err, http.StatusInternalServerError)
-					continue
-
 				}
+				if err == websocket.ErrCloseSent {
+					closed <- struct{}{}
+					return
+				}
+				handleErr(w, err, http.StatusInternalServerError)
+				continue
 			}
 		}
 	}()
 	go func() {
 		for {
 			MessageType, p, err := conn.ReadMessage()
-			if ce, ok := err.(*websocket.CloseError); ok {
-				switch ce.Code {
-				case websocket.CloseNormalClosure,
-					websocket.CloseGoingAway,
-					websocket.CloseNoStatusReceived:
+			if err != nil {
+				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
 					closed <- struct{}{}
 					return
-				default:
-					handleErr(w, err, http.StatusInternalServerError)
-					continue
-
 				}
+				if err == websocket.ErrCloseSent {
+					closed <- struct{}{}
+					return
+				}
+				handleErr(w, err, http.StatusInternalServerError)
+				continue
 			}
 			if MessageType != websocket.TextMessage {
-				handleErr(w, errors.New("Only text Message are supported"), http.StatusNotImplemented)
+				handleErr(w, errors.New("Only text []byte are supported"), http.StatusNotImplemented)
 				continue
 			}
 			rcv <- p
@@ -126,12 +119,12 @@ func (wsd *WSDispatch) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func fanOut(ch <-chan Message, size, lag int) []chan Message {
-	cs := make([]chan Message, size)
+func fanOut(ch <-chan []byte, size, lag int) []chan []byte {
+	cs := make([]chan []byte, size)
 	for i := range cs {
 		// The size of the channels buffer controls how far behind the recievers
 		// of the fanOut channels can lag the other channels.
-		cs[i] = make(chan Message, lag)
+		cs[i] = make(chan []byte, lag)
 	}
 	go func() {
 		for msg := range ch {
@@ -141,21 +134,20 @@ func fanOut(ch <-chan Message, size, lag int) []chan Message {
 		}
 		for _, c := range cs {
 			// close all our fanOut channels when the input channel is exhausted.
-			log.Println("[fanOut] Closing channels")
 			close(c)
 		}
 	}()
 	return cs
 }
 
-func merge(done <-chan struct{}, cs ...<-chan Message) <-chan Message {
+func merge(done <-chan struct{}, cs ...<-chan []byte) <-chan []byte {
 	var wg sync.WaitGroup
-	out := make(chan Message)
+	out := make(chan []byte)
 
 	// Start an output goroutine for each input channel in cs.  output
 	// copies values from c to out until c or done is closed, then calls
 	// wg.Done.
-	output := func(c <-chan Message) {
+	output := func(c <-chan []byte) {
 		defer wg.Done()
 		for n := range c {
 			select {
@@ -177,4 +169,32 @@ func merge(done <-chan struct{}, cs ...<-chan Message) <-chan Message {
 		close(out)
 	}()
 	return out
+}
+
+func send(stop chan struct{}, f func() []byte) chan []byte {
+	c := make(chan []byte)
+	go func() {
+		for {
+			select {
+			case <-stop:
+				close(c)
+				return
+			case c <- f():
+			}
+		}
+	}()
+	return c
+}
+
+func receive(msg <-chan []byte, stop chan struct{}, f func(*[]byte)) {
+	go func() {
+		for {
+			select {
+			case b := <-msg:
+				f(&b)
+			case <-stop:
+				return
+			}
+		}
+	}()
 }
