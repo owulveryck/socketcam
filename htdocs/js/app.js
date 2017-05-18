@@ -21,8 +21,8 @@ window.addEventListener("load", function(evt) {
   } else {
     new_uri = "ws:";
   }
-  new_uri += "//" + loc.host;
-  new_uri += loc.pathname + "ws";
+  new_uri += "//" + loc.host + "/ws";
+  //new_uri += loc.pathname + "ws";
   ws = new WebSocket(new_uri);
   ws.onopen = function(evt) {
     print("Connected");
