@@ -2,7 +2,7 @@ package dummy
 
 import (
 	"context"
-	"github.com/owulveryck/socketcam/wsdispatcher"
+	"github.com/owulveryck/cortical"
 	"log"
 )
 
@@ -13,7 +13,7 @@ type Echo struct {
 }
 
 // NewCortex is filling the  ...
-func NewCortex(ctx context.Context) (wsdispatcher.GetInfoFromCortexFunc, wsdispatcher.SendInfoToCortex) {
+func NewCortex(ctx context.Context) (cortical.GetInfoFromCortexFunc, cortical.SendInfoToCortex) {
 	c := make(chan []byte)
 	echo := &Echo{
 		pong: "pong",

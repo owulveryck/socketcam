@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/kelseyhightower/envconfig"
-	"github.com/owulveryck/socketcam/wsdispatcher"
+	"github.com/owulveryck/cortical"
 	tf "github.com/tensorflow/tensorflow/tensorflow/go"
 	"io/ioutil"
 	"log"
@@ -37,7 +37,7 @@ type message struct {
 }
 
 // NewCortex is filling the  ...
-func NewCortex(ctx context.Context) (wsdispatcher.GetInfoFromCortexFunc, wsdispatcher.SendInfoToCortex) {
+func NewCortex(ctx context.Context) (cortical.GetInfoFromCortexFunc, cortical.SendInfoToCortex) {
 	c := make(chan []byte)
 	class := &classifier{
 		c: c,

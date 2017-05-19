@@ -5,9 +5,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/owulveryck/cortical"
 	"github.com/owulveryck/socketcam/dummy"
 	"github.com/owulveryck/socketcam/processors/tensorflow"
-	"github.com/owulveryck/socketcam/wsdispatcher"
 	"github.com/phyber/negroni-gzip/gzip"
 	"github.com/urfave/negroni"
 	"log"
@@ -49,9 +49,9 @@ func main() {
 	//d2 := dummy.New()
 	//d3 := dummy.New()
 	//d4 := dummy.New()
-	wsDsptch := &wsdispatcher.WSDispatch{
+	brain := &cortical.Cortical{
 		Upgrader: websocket.Upgrader{},
-		Cortexs:  []func(context.Context) (wsdispatcher.GetInfoFromCortexFunc, wsdispatcher.SendInfoToCortex){dummy.NewCortex, tensorflow.NewCortex},
+		Cortexs:  []func(context.Context) (cortical.GetInfoFromCortexFunc, cortical.SendInfoToCortex){dummy.NewCortex, tensorflow.NewCortex},
 	}
 
 	router := mux.NewRouter().StrictSlash(true)
@@ -60,7 +60,7 @@ func main() {
 		Methods("GET").
 		Path("/ws").
 		Name("Communication Channel").
-		HandlerFunc(wsDsptch.ServeWS)
+		HandlerFunc(brain.ServeWS)
 
 	router.
 		Methods("GET").
