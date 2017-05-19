@@ -6,7 +6,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/owulveryck/socketcam/dummy"
-	//"github.com/owulveryck/socketcam/processors/tensorflow"
+	"github.com/owulveryck/socketcam/processors/tensorflow"
 	"github.com/owulveryck/socketcam/wsdispatcher"
 	"github.com/phyber/negroni-gzip/gzip"
 	"github.com/urfave/negroni"
@@ -51,9 +51,7 @@ func main() {
 	//d4 := dummy.New()
 	wsDsptch := &wsdispatcher.WSDispatch{
 		Upgrader: websocket.Upgrader{},
-		Cortexs:  []func(context.Context) (wsdispatcher.GetInfoFromCortexFunc, wsdispatcher.SendInfoToCortex){dummy.NewCortex},
-		//Senders:   []func(context.Context) []byte{tensorflow.Send},
-		//Receivers: []func(context.Context, *[]byte){tensorflow.Receive},
+		Cortexs:  []func(context.Context) (wsdispatcher.GetInfoFromCortexFunc, wsdispatcher.SendInfoToCortex){dummy.NewCortex, tensorflow.NewCortex},
 	}
 
 	router := mux.NewRouter().StrictSlash(true)

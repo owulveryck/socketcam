@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/owulveryck/socketcam/wsdispatcher"
 	tf "github.com/tensorflow/tensorflow/tensorflow/go"
 	"io/ioutil"
 	"log"
@@ -35,8 +36,21 @@ type message struct {
 	} `json:"dataURI"`
 }
 
+// NewCortex is filling the  ...
+func NewCortex(ctx context.Context) (wsdispatcher.GetInfoFromCortexFunc, wsdispatcher.SendInfoToCortex) {
+	c := make(chan []byte)
+	class := &classifier{
+		c: c,
+	}
+	return class.Send, class.Receive
+}
+
+type classifier struct {
+	c chan []byte
+}
+
 // Receive is the receiver of event
-func Receive(ctx context.Context, b *[]byte) {
+func (t *classifier) Receive(ctx context.Context, b *[]byte) {
 	var m message
 	err := json.Unmarshal(*b, &m)
 	if err != nil {
@@ -68,13 +82,13 @@ func Receive(ctx context.Context, b *[]byte) {
 		// Find the most probably label index.
 		probabilities := output[0].Value().([][]float32)[0]
 		label := printBestLabel(probabilities, labelsfile)
-		c <- []byte(fmt.Sprintf("%v (%2.0f%%)", label.Label, label.Probability*100.0))
+		t.c <- []byte(fmt.Sprintf("%v (%2.0f%%)", label.Label, label.Probability*100.0))
 	}
 }
 
 // Send to the websocket
-func Send(ctx context.Context) []byte {
-	return <-c
+func (t *classifier) Send(ctx context.Context) chan []byte {
+	return t.c
 }
 
 func init() {
