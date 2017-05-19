@@ -1,12 +1,11 @@
 package wsdispatcher
 
 import (
-	"encoding/json"
 	"github.com/gorilla/websocket"
 	"time"
 
+	"context"
 	"github.com/gorilla/mux"
-	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
@@ -15,36 +14,55 @@ import (
 var (
 	testServer *httptest.Server
 	tsURL      *url.URL
-	okURL      *url.URL
-	koURL      *url.URL
 )
 
+// Echo is a dummy type that reads a message, wait for some time and sends ret back
+type Echo struct {
+	pong string
+	c    chan []byte
+}
+
+// NewCortex is filling the  ...
+func NewCortex(ctx context.Context) (GetInfoFromCortexFunc, SendInfoToCortex) {
+	c := make(chan []byte)
+	echo := &Echo{
+		pong: "pong",
+		c:    c,
+	}
+	return echo.Get, echo.Receive
+}
+
+// Get ...
+func (e *Echo) Get(ctx context.Context) chan []byte {
+	return e.c
+}
+
+// Receive ...
+func (e *Echo) Receive(ctx context.Context, b *[]byte) {
+	e.c <- []byte(e.pong)
+}
 func init() {
 	router := mux.NewRouter().StrictSlash(true)
+	wsDsptch := &WSDispatch{
+		Upgrader: websocket.Upgrader{},
+		Cortexs:  []func(context.Context) (GetInfoFromCortexFunc, SendInfoToCortex){NewCortex},
+	}
 
-	handler := gowmb.CreateHandler(createMessage(), newTag(), "tag")
 	router.
 		Methods("GET").
-		Path("/serveWs/{tag}").
+		Path("/ws").
 		Name("WebSocket").
-		HandlerFunc(handler)
-	router.
-		Methods("GET").
-		Path("/badtag/{tagg}").
-		Name("WebSocket").
-		HandlerFunc(handler)
+		HandlerFunc(wsDsptch.ServeWS)
 
 	testServer = httptest.NewServer(router) //Creating new server with the user handlers
 	tsURL, _ = url.Parse(testServer.URL)
-	okURL = &url.URL{Scheme: "ws", Host: tsURL.Host, Path: "/serveWs/1234"}
-	koURL = &url.URL{Scheme: "ws", Host: tsURL.Host, Path: "/badtag/1234"}
 }
 
 func TestPingPong(t *testing.T) {
-	wsURL := url.URL{Scheme: "ws", Host: tsURL.Host, Path: "/serveWs/1234"}
+	wsURL := url.URL{Scheme: "ws", Host: tsURL.Host, Path: "/ws"}
 	c, _, err := websocket.DefaultDialer.Dial(wsURL.String(), nil)
 	if err != nil {
-		t.Errorf("Cannot connect to the websocket %v", err)
+		t.Fatalf("Cannot connect to the websocket %v", err)
 
 	}
 	defer c.Close()
@@ -55,11 +73,9 @@ func TestPingPong(t *testing.T) {
 	if err != nil {
 		t.Errorf("write close: %v", err)
 	}
-
 }
-func TestBadTag(t *testing.T) {
 
-}
+/*
 func TestServeWs(t *testing.T) {
 	httpURL := url.URL{Scheme: tsURL.Scheme, Host: tsURL.Host, Path: "/serveWs/"}
 	// Try to connect to a socket without an ID
@@ -143,3 +159,4 @@ func TestServeWs(t *testing.T) {
 		t.Errorf("write close: %v", err)
 	}
 }
+*/
