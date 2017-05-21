@@ -8,6 +8,7 @@ var video = document.querySelector('video');
 var canvas;
 var listening=false;
 var recognizing=true;
+var localstream
 var ws
 // Connecting the websocket
 var loc = window.location, new_uri;
@@ -58,17 +59,35 @@ recognition.onresult = function(event) {
         final_transcript += event.results[i][0].transcript;
         console.log("FINAL TRANSCRIPTION:")
         console.log(final_transcript);
-        if (listening == true){
-          ws.send(final_transcript);
-          listening=false;
+        ws.send(final_transcript);
+        if (final_transcript.includes("open your eyes")){
+          var front = false;
+          //document.getElementById('flip-button').onclick = function() { front = !front; };
+
+          var constraints = { video: { facingMode: (front? "user" : "environment") } };
+          navigator.mediaDevices.getUserMedia(constraints)
+          // permission granted:
+            .then(function(stream) {
+              localstream = stream
+              video.src = window.URL.createObjectURL(stream);
+              video.addEventListener('click', takeSnapshot);
+              // setInterval(takeSnapshot,3000);
+            })
+          // permission denied:
+            .catch(function(error) {
+              document.body.textContent = 'Could not access the camera. Error: ' + error.name;
+            });
         }
-        else {
-          if (final_transcript.includes("Jarvis"))
-          {
-            console.log("Keyword Jarvis detected");
-            listening=true;
-            ws.send(final_transcript);  
-          }
+        if (final_transcript.includes("close your eyes")){
+          //clearInterval(theDrawLoop);
+          //  //ExtensionData.vidStatus = 'off';
+          video.pause();
+          video.src = "";
+          localstream.getTracks()[0].stop();
+          console.log("Vid off");
+        }
+        if (final_transcript.includes("what do you see")){
+          takeSnapshot();
         }
       }
     }
@@ -112,16 +131,16 @@ function takeSnapshot() {
 if (navigator.mediaDevices) {
   // access the web cam
   var front = false;
-  document.getElementById('flip-button').onclick = function() { front = !front; };
+  //document.getElementById('flip-button').onclick = function() { front = !front; };
 
   var constraints = { video: { facingMode: (front? "user" : "environment") } };
   navigator.mediaDevices.getUserMedia(constraints)
   // permission granted:
-    .then(function(stream) {
-      video.src = window.URL.createObjectURL(stream);
-      video.addEventListener('click', takeSnapshot);
+  //  .then(function(stream) {
+  //    video.src = window.URL.createObjectURL(stream);
+  //    video.addEventListener('click', takeSnapshot);
       // setInterval(takeSnapshot,3000);
-    })
+  //  })
   // permission denied:
     .catch(function(error) {
       document.body.textContent = 'Could not access the camera. Error: ' + error.name;
