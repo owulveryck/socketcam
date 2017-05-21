@@ -4,6 +4,7 @@
 // Definitions
 // *************************************************
 var recognition = new webkitSpeechRecognition();
+recognition.lang = "fr-FR";
 var video = document.querySelector('video');
 var canvas;
 var listening=false;
@@ -38,20 +39,31 @@ ws.onmessage = function(event) {
   console.log("Received:" + event.data);
   console.log("Now speaking, stopping recognition.");
   print(event.data);
-  recognizing=false;
-  var msg = new SpeechSynthesisUtterance(event.data);
+  //recognizing=false;
+  var msg = new SpeechSynthesisUtterance('I see a '+ event.data);
   window.speechSynthesis.speak(msg);
   console.log("Starting recognition again.");
   recognizing=true;
 };
 
 
+function talk(message) {
+  var utterance = new SpeechSynthesisUtterance(message);
+  utterance.lang = 'fr-FR';
+  var voices = window.speechSynthesis.getVoices();
+  console.log(voices);
+  utterance.voice = voices[1];
+  utterance.voiceURI = 'native';
+  window.speechSynthesis.speak(utterance);
+}
+
 // *************************************************
 // Ear processing
 // *************************************************
 recognition.continuous = true;
-recognition.interimResults = false;
+recognition.interimResults = true;
 recognition.onresult = function(event) { 
+  console.log(event);
   var final_transcript="";
   if (recognizing == true ) {
     for (var i = event.resultIndex; i < event.results.length; ++i) {
@@ -60,7 +72,7 @@ recognition.onresult = function(event) {
         console.log("FINAL TRANSCRIPTION:")
         console.log(final_transcript);
         ws.send(final_transcript);
-        if (final_transcript.includes("open your eyes")){
+        if (final_transcript.includes("ouvre les yeux")){
           var front = false;
           //document.getElementById('flip-button').onclick = function() { front = !front; };
 
@@ -78,7 +90,10 @@ recognition.onresult = function(event) {
               document.body.textContent = 'Could not access the camera. Error: ' + error.name;
             });
         }
-        if (final_transcript.includes("close your eyes")){
+        if (final_transcript.includes("Salut")){
+          talk("salut!");
+        }
+        if (final_transcript.includes("ferme les yeux")){
           //clearInterval(theDrawLoop);
           //  //ExtensionData.vidStatus = 'off';
           video.pause();
@@ -86,7 +101,7 @@ recognition.onresult = function(event) {
           localstream.getTracks()[0].stop();
           console.log("Vid off");
         }
-        if (final_transcript.includes("what do you see")){
+        if (final_transcript.includes("que vois-tu")){
           takeSnapshot();
         }
       }
@@ -146,4 +161,5 @@ if (navigator.mediaDevices) {
       document.body.textContent = 'Could not access the camera. Error: ' + error.name;
     });
 }
+console.log('Listening');
 recognition.start();
