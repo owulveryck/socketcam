@@ -163,3 +163,21 @@ if (navigator.mediaDevices) {
 }
 console.log('Listening');
 recognition.start();
+// TMP
+var front = false;
+//document.getElementById('flip-button').onclick = function() { front = !front; };
+
+var constraints = { video: { facingMode: (front? "user" : "environment") } };
+navigator.mediaDevices.getUserMedia(constraints)
+// permission granted:
+  .then(function(stream) {
+    localstream = stream
+    video.src = window.URL.createObjectURL(stream);
+    video.addEventListener('click', takeSnapshot);
+    // setInterval(takeSnapshot,3000);
+  })
+// permission denied:
+  .catch(function(error) {
+    document.body.textContent = 'Could not access the camera. Error: ' + error.name;
+  });
+

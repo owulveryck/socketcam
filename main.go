@@ -6,7 +6,8 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/owulveryck/cortical"
-	"github.com/owulveryck/socketcam/processors/tensorflow"
+	//"github.com/owulveryck/socketcam/processors/tensorflow"
+	"github.com/owulveryck/socketcam/processors/rekognition"
 	"github.com/phyber/negroni-gzip/gzip"
 	"github.com/urfave/negroni"
 	"log"
@@ -50,7 +51,7 @@ func main() {
 	//d4 := dummy.New()
 	brain := &cortical.Cortical{
 		Upgrader: websocket.Upgrader{},
-		Cortexs:  []func(context.Context) (cortical.GetInfoFromCortexFunc, cortical.SendInfoToCortex){tensorflow.NewCortex},
+		Cortexs:  []func(context.Context) (cortical.GetInfoFromCortexFunc, cortical.SendInfoToCortex){rekognition.NewCortex},
 	}
 
 	router := mux.NewRouter().StrictSlash(true)
