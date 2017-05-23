@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/kelseyhightower/envconfig"
@@ -51,7 +50,7 @@ func main() {
 	//d4 := dummy.New()
 	brain := &cortical.Cortical{
 		Upgrader: websocket.Upgrader{},
-		Cortexs:  []func(context.Context) (cortical.GetInfoFromCortexFunc, cortical.SendInfoToCortex){rekognition.NewCortex},
+		Cortexes: []cortical.Cortex{&rekognition.Rekognition{}},
 	}
 
 	router := mux.NewRouter().StrictSlash(true)

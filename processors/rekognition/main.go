@@ -33,8 +33,11 @@ type message struct {
 	} `json:"dataURI"`
 }
 
+//Rekognition is implementing the cortical.Cortex interface
+type Rekognition struct{}
+
 // NewCortex is filling the  ...
-func NewCortex(ctx context.Context) (cortical.GetInfoFromCortexFunc, cortical.SendInfoToCortex) {
+func (r *Rekognition) NewCortex(ctx context.Context) (cortical.GetInfoFromCortexFunc, cortical.SendInfoToCortex) {
 	c := make(chan []byte)
 	class := &classifier{
 		c: c,

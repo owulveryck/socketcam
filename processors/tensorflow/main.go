@@ -36,8 +36,11 @@ type message struct {
 	} `json:"dataURI"`
 }
 
+// Tensorflow is filling the cortical.Cortex interface
+type Tensorflow struct{}
+
 // NewCortex is filling the  ...
-func NewCortex(ctx context.Context) (cortical.GetInfoFromCortexFunc, cortical.SendInfoToCortex) {
+func (t *tensorflow) NewCortex(ctx context.Context) (cortical.GetInfoFromCortexFunc, cortical.SendInfoToCortex) {
 	c := make(chan []byte)
 	class := &classifier{
 		c: c,
