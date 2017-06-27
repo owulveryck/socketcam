@@ -67,74 +67,73 @@ func (t *classifier) Receive(ctx context.Context, b *[]byte) {
 		log.Println("Rekognition")
 		found := false
 		for k, v := range config.Me {
-			log.Printf("%v: %v", k, v)
-			// Is the face hosted on s3?
-			var me []byte
-			if strings.Contains(v, "s3//") {
-				elements := strings.Split(v, "/")
-				input := &s3.GetObjectInput{
-					Bucket: aws.String(elements[2]),
-					Key:    aws.String(filepath.Join(elements[3:]...)),
-				}
-				log.Println(input)
-				result, err := svcS3.GetObject(input)
-				if err != nil {
-					if aerr, ok := err.(awserr.Error); ok {
-						switch aerr.Code() {
-						case s3.ErrCodeNoSuchKey:
-							fmt.Println(s3.ErrCodeNoSuchKey, aerr.Error())
-						default:
-							fmt.Println(aerr.Error())
-						}
-					} else {
-						// Print the error, cast err to awserr.Error to get the Code and
-						// Message from an error.
-						fmt.Println(err.Error())
+			go func(k, v string) {
+				log.Printf("%v: %v", k, v)
+				// Is the face hosted on s3?
+				var me []byte
+				if strings.Contains(v, "s3//") {
+					elements := strings.Split(v, "/")
+					input := &s3.GetObjectInput{
+						Bucket: aws.String(elements[2]),
+						Key:    aws.String(filepath.Join(elements[3:]...)),
 					}
-					continue
+					log.Println(input)
+					result, err := svcS3.GetObject(input)
+					if err != nil {
+						if aerr, ok := err.(awserr.Error); ok {
+							switch aerr.Code() {
+							case s3.ErrCodeNoSuchKey:
+								fmt.Println(s3.ErrCodeNoSuchKey, aerr.Error())
+							default:
+								fmt.Println(aerr.Error())
+							}
+						} else {
+							// Print the error, cast err to awserr.Error to get the Code and
+							// Message from an error.
+							fmt.Println(err.Error())
+						}
+						return
+					}
+					me, err = ioutil.ReadAll(result.Body)
+					result.Body.Close()
+				} else {
+					// Opening my face
+					me, err = ioutil.ReadFile(v)
 				}
-				me, err = ioutil.ReadAll(result.Body)
-				result.Body.Close()
-			} else {
-				// Opening my face
-				me, err = ioutil.ReadFile(v)
-			}
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-			data := m.DataURI.Content
-			params := &rekognition.CompareFacesInput{
-				SourceImage: &rekognition.Image{ // Required
-					Bytes: data,
-				},
-				TargetImage: &rekognition.Image{ // Required
-					Bytes: me,
-				},
-				SimilarityThreshold: aws.Float64(1.0),
-			}
-			resp, err := svc.CompareFaces(params)
-
-			if err != nil {
-				// Print the error, cast err to awserr.Error to get the Code and
-				// Message from an error.
-				fmt.Println(err.Error())
-				return
-			}
-
-			// Pretty-print the response data.
-			for _, face := range resp.FaceMatches {
-				if *face.Similarity > 92.0 {
-					found = true
-					t.c <- []byte("Salut" + k)
+				if err != nil {
+					log.Println(err)
+					return
 				}
-			}
-			fmt.Println(k)
-			fmt.Println(resp)
-			//t.c <- []byte(fmt.Sprintf("%v (%2.0f%%)", label.Label, label.Probability*100.0))
-		}
-		if !found {
-			t.c <- []byte("Bonjour à vous")
+				data := m.DataURI.Content
+				params := &rekognition.CompareFacesInput{
+					SourceImage: &rekognition.Image{ // Required
+						Bytes: data,
+					},
+					TargetImage: &rekognition.Image{ // Required
+						Bytes: me,
+					},
+					SimilarityThreshold: aws.Float64(1.0),
+				}
+				resp, err := svc.CompareFaces(params)
+
+				if err != nil {
+					// Print the error, cast err to awserr.Error to get the Code and
+					// Message from an error.
+					fmt.Println(err.Error())
+					return
+				}
+
+				// Pretty-print the response data.
+				for _, face := range resp.FaceMatches {
+					if *face.Similarity > 92.0 {
+						found = true
+						t.c <- []byte("Salut " + k)
+					}
+				}
+				fmt.Println(k)
+				fmt.Println(resp)
+				//t.c <- []byte(fmt.Sprintf("%v (%2.0f%%)", label.Label, label.Probability*100.0))
+			}(k, v)
 		}
 	}
 }
