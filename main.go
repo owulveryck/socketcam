@@ -1,16 +1,18 @@
 package main
 
 import (
+	rice "github.com/GeertJohan/go.rice"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/owulveryck/cortical"
 	//"github.com/owulveryck/socketcam/processors/tensorflow"
+	"log"
+	"net/http"
+
 	"github.com/owulveryck/socketcam/processors/rekognition"
 	"github.com/phyber/negroni-gzip/gzip"
 	"github.com/urfave/negroni"
-	"log"
-	"net/http"
 )
 
 var (
@@ -65,7 +67,8 @@ func main() {
 		Methods("GET").
 		PathPrefix("/").
 		Name("Static").
-		Handler(http.FileServer(http.Dir("./htdocs")))
+		//Handler(http.FileServer(http.Dir("./htdocs")))
+		Handler(http.FileServer(rice.MustFindBox("htdocs").HTTPBox()))
 	n := negroni.Classic()
 	n.Use(gzip.Gzip(gzip.DefaultCompression))
 
