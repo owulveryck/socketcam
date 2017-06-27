@@ -125,7 +125,7 @@ func (t *classifier) Receive(ctx context.Context, b *[]byte) {
 
 				// Pretty-print the response data.
 				for _, face := range resp.FaceMatches {
-					if *face.Similarity > 92.0 {
+					if *face.Similarity > 70.0 {
 						found = true
 						t.c <- []byte("Salut " + k)
 					}
