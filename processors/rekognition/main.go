@@ -4,13 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/rekognition"
-	"github.com/kelseyhightower/envconfig"
-	"github.com/owulveryck/cortical"
 	"io/ioutil"
 	"log"
+	"path/filepath"
+	"strings"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/rekognition"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/kelseyhightower/envconfig"
+	"github.com/owulveryck/cortical"
 )
 
 type configuration struct {
@@ -21,6 +26,7 @@ var (
 	c      chan []byte
 	sess   *session.Session
 	svc    *rekognition.Rekognition
+	svcS3  *s3.S3
 	config configuration
 )
 
@@ -59,12 +65,43 @@ func (t *classifier) Receive(ctx context.Context, b *[]byte) {
 	if m.DataURI.ContentType == "image/jpeg" {
 		//results := make(map[string]float32)
 		log.Println("Rekognition")
+		found := false
 		for k, v := range config.Me {
-			log.Println("%v: %v", k, v)
-			// Opening my face
-			me, err := ioutil.ReadFile(v)
+			log.Printf("%v: %v", k, v)
+			// Is the face hosted on s3?
+			var me []byte
+			if strings.Contains(v, "s3//") {
+				elements := strings.Split(v, "/")
+				input := &s3.GetObjectInput{
+					Bucket: aws.String(elements[2]),
+					Key:    aws.String(filepath.Join(elements[3:]...)),
+				}
+				log.Println(input)
+				result, err := svcS3.GetObject(input)
+				if err != nil {
+					if aerr, ok := err.(awserr.Error); ok {
+						switch aerr.Code() {
+						case s3.ErrCodeNoSuchKey:
+							fmt.Println(s3.ErrCodeNoSuchKey, aerr.Error())
+						default:
+							fmt.Println(aerr.Error())
+						}
+					} else {
+						// Print the error, cast err to awserr.Error to get the Code and
+						// Message from an error.
+						fmt.Println(err.Error())
+					}
+					continue
+				}
+				me, err = ioutil.ReadAll(result.Body)
+				result.Body.Close()
+			} else {
+				// Opening my face
+				me, err = ioutil.ReadFile(v)
+			}
 			if err != nil {
-				log.Fatal(err)
+				log.Println(err)
+				continue
 			}
 			data := m.DataURI.Content
 			params := &rekognition.CompareFacesInput{
@@ -76,7 +113,6 @@ func (t *classifier) Receive(ctx context.Context, b *[]byte) {
 				},
 				SimilarityThreshold: aws.Float64(1.0),
 			}
-			log.Println("DEBUG: sending params ", params)
 			resp, err := svc.CompareFaces(params)
 
 			if err != nil {
@@ -89,15 +125,16 @@ func (t *classifier) Receive(ctx context.Context, b *[]byte) {
 			// Pretty-print the response data.
 			for _, face := range resp.FaceMatches {
 				if *face.Similarity > 92.0 {
-					t.c <- []byte("Salut Olivier Wulveryck")
-				} else {
-					t.c <- []byte("Bonjour à vous")
-
+					found = true
+					t.c <- []byte("Salut" + k)
 				}
 			}
 			fmt.Println(k)
 			fmt.Println(resp)
 			//t.c <- []byte(fmt.Sprintf("%v (%2.0f%%)", label.Label, label.Probability*100.0))
+		}
+		if !found {
+			t.c <- []byte("Bonjour à vous")
 		}
 	}
 }
@@ -114,6 +151,7 @@ func init() {
 	}
 	sess, err = session.NewSession(&aws.Config{Region: aws.String("us-east-1")})
 	svc = rekognition.New(sess)
+	svcS3 = s3.New(sess)
 
 	if err != nil {
 		fmt.Println("failed to create session,", err)

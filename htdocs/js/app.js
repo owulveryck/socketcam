@@ -4,7 +4,7 @@
 // Definitions
 // *************************************************
 var recognition = new webkitSpeechRecognition();
-recognition.lang = "fr-FR";
+//recognition.lang = "fr-FR";
 var video = document.querySelector('video');
 var canvas;
 var listening=false;
@@ -72,7 +72,7 @@ recognition.onresult = function(event) {
         console.log("FINAL TRANSCRIPTION:")
         console.log(final_transcript);
         ws.send(final_transcript);
-        if (final_transcript.includes("ouvre les yeux")){
+        if (final_transcript.includes("open your eye")){
           var front = false;
           //document.getElementById('flip-button').onclick = function() { front = !front; };
 
@@ -93,7 +93,7 @@ recognition.onresult = function(event) {
         if (final_transcript.includes("Salut")){
           talk("salut!");
         }
-        if (final_transcript.includes("ferme les yeux")){
+        if (final_transcript.includes("close your eye")){
           //clearInterval(theDrawLoop);
           //  //ExtensionData.vidStatus = 'off';
           video.pause();
@@ -101,7 +101,7 @@ recognition.onresult = function(event) {
           localstream.getTracks()[0].stop();
           console.log("Vid off");
         }
-        if (final_transcript.includes("que vois-tu")){
+        if (final_transcript.includes("what do you see")){
           takeSnapshot();
         }
       }
