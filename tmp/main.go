@@ -5,13 +5,28 @@
 
 package main
 
-import (
-	"fmt"
-
-	"github.com/gopherjs/gopherjs/js"
-)
+import "github.com/gopherjs/gopherjs/js"
 
 func main() {
+	// Say hello
+	utterance := js.Global.Get("SpeechSynthesisUtterance").New()
+	utterance.Set("lang", "fr-FR")
+	utterance.Set("text", "salut comment ça va?")
+	js.Global.Get("window").Get("speechSynthesis").Call("speak", utterance)
+	// Listening
+	ear := js.Global.Get("webkitSpeechRecognition").New()
+	ear.Set("lang", "fr-FR")
+	ear.Set("continuous", true)
+	ear.Set("interimResults", true)
+	ear.Set("onresult", func(event *js.Object) {
+		go func() {
+			for i := event.Get("resultIndex").Int(); i < event.Get("results").Get("length").Int(); i++ {
+				//fmt.Println(event.Get("results").Index(i).Index(0).Get("transcript"))
+			}
+		}()
+	})
+	ear.Call("start")
+	// turn on the webcam
 	video := js.Global.Get("document").Call("querySelector", "video")
 	type ctrs struct {
 		*js.Object
@@ -27,8 +42,8 @@ func main() {
 
 	constraints := &ctrs{Object: js.Global.Get("Object").New()}
 	videoParams := &mediaTrackConstraints{Object: js.Global.Get("Object").New()}
-	videoParams.Width = 1024
-	videoParams.Height = 720
+	//videoParams.Width = 1024
+	//videoParams.Height = 720
 	videoParams.FacingMode = "environment"
 
 	constraints.Video = videoParams
@@ -42,7 +57,6 @@ func main() {
 	})
 	senses.Call("catch", func(error *js.Object) {
 		go func() {
-			fmt.Println("Could not access camera")
 		}()
 	})
 }
