@@ -4,7 +4,7 @@
 // Definitions
 // *************************************************
 var recognition = new webkitSpeechRecognition();
-//recognition.lang = "fr-FR";
+recognition.lang = "fr-FR";
 var video = document.querySelector('video');
 var canvas;
 var listening=false;
@@ -40,7 +40,8 @@ ws.onmessage = function(event) {
   console.log("Now speaking, stopping recognition.");
   print(event.data);
   //recognizing=false;
-  var msg = new SpeechSynthesisUtterance('I see a '+ event.data);
+  var msg = new SpeechSynthesisUtterance(event.data);
+  msg.lang = 'fr-FR';
   window.speechSynthesis.speak(msg);
   console.log("Starting recognition again.");
   recognizing=true;
@@ -72,7 +73,7 @@ recognition.onresult = function(event) {
         console.log("FINAL TRANSCRIPTION:")
         console.log(final_transcript);
         ws.send(final_transcript);
-        if (final_transcript.includes("open your eye")){
+        if (final_transcript.includes("ouvre les yeux")){
           var front = false;
           //document.getElementById('flip-button').onclick = function() { front = !front; };
 
@@ -93,7 +94,7 @@ recognition.onresult = function(event) {
         if (final_transcript.includes("Salut")){
           talk("salut!");
         }
-        if (final_transcript.includes("close your eye")){
+        if (final_transcript.includes("ferme les yeux")){
           //clearInterval(theDrawLoop);
           //  //ExtensionData.vidStatus = 'off';
           video.pause();
@@ -101,7 +102,7 @@ recognition.onresult = function(event) {
           localstream.getTracks()[0].stop();
           console.log("Vid off");
         }
-        if (final_transcript.includes("what do you see")){
+        if (final_transcript.includes("qui vois-tu")){
           takeSnapshot();
         }
       }

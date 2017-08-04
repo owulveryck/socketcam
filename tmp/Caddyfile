@@ -1,0 +1,4 @@
+*:2020 {
+  bind {$ADDRESS}
+  tls self_signed
+}
