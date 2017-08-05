@@ -1,12 +1,64 @@
 <html>
-        <head>
+<head>
 
-              <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-              <!-- Theme used for syntax highlighting of code -->
-        </head>
-	<body>
-                                    <video autoplay id="webcam"></video>
-                                    <br>
-		<script src="app.js"></script>
-	</body>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<!-- Theme used for syntax highlighting of code -->
+<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+
+</head>
+<body>
+<div class="container-fluid">
+
+  <div class="row">
+    <div class="col-sm-1">
+      <p class="lead">
+      <div class="btn-group-vertical" role="group" aria-label="...">
+        <button type="button" class="btn btn-success">Listening</button> 
+        <br>
+        <button type="button" class="btn btn-success">Watching</button> 
+        <br>
+        <button type="button" class="btn btn-success">Speaking</button> 
+        <br>
+      </div>
+            </p> 
+
+    </div>
+    <div class="col-sm-6">
+      <p class="lead">
+      <div class="embed-responsive embed-responsive-16by9">
+        <video autoplay id="webcam"></video>
+      </div>
+      </p>
+    </div>
+    <div class="col-sm-5">
+
+      <p class="lead">
+      <div class="jumbotron">
+        <p>output</p>
+      </div>
+      </p>
+    </div>
+  </div>
+<div class="input-group">
+        <input class="form-control" aria-label="Text input with multiple buttons"> 
+        <div class="input-group-btn"> 
+          <button type="button" class="btn btn-success">Memorize</button> 
+        </div>
+      </div>
+
+</div><!-- /.container -->
+
+
+<!-- Bootstrap core JavaScript
+                                                                                                                                                                                                                                                                                      ================================================== -->
+<!-- Placed at the end of the document so the pages load faster -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+<script src="app.js"></script>
+</body>
 </html>
